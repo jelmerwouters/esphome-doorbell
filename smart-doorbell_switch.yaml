@@ -11,7 +11,6 @@ esp32:
 
 # Enable logging
 logger:
-  level: DEBUG
 
 # Enable Home Assistant API
 api:
@@ -77,30 +76,7 @@ globals:
     type: bool
     restore_value: true
     initial_value: 'true'
-
-number:
-  - platform: template
-    name: "Doorbell Switch Off Delay"
-    id: switch_off_delay
-    optimistic: true
-    mode: box
-    min_value: 0
-    max_value: 2000
-    step: 1
-    restore_value: yes
-    initial_value: 0
-
-select:
-  - platform: template
-    name: "Doorbell Chime Sound"
-    id: chime_sound
-    optimistic: true
-    options:
-      - "Switch"
-      - "Zuidwijk Dingdong"
-    initial_option: "Switch"
-    restore_value: yes
-
+ 
 switch:
   - platform: gpio
     pin:
@@ -135,54 +111,20 @@ binary_sensor:
       inverted: true
     name: "Doorbell"
     filters:
-      - delayed_on: 1ms
-      - delayed_off: !lambda |-
-          if (id(chime_sound).state == "Zuidwijk Dingdong") {
-            return 2500;
-          }
-          else {
-            return id(switch_off_delay).state;
-          }
+      # Small filter, to debounce the button press.
+      - delayed_on: 25ms
+      - delayed_off: 25ms
     on_press:
+      # Only turn on the chime when it is active.
       then:
-        - logger.log:
-            format: "chime_sound: %s"
-            args: ['id(chime_sound).state.c_str()']
-        - logger.log:
-            format: "switch_off_delay: %.1f"
-            args: ['id(switch_off_delay).state']
-        - if:
-            condition:
-              - switch.is_on: chime_active
-            then:
-              - if:
-                  condition:
-                    - lambda: return (id(chime_sound).state == "Switch");
-                  then:
-                    - switch.turn_on: relay
-
-              - if:
-                  condition:
-                    - lambda: return (id(chime_sound).state == "Zuidwijk Dingdong");
-                  then:
-                    - switch.turn_on: relay
-                    - delay: 200ms
-                    - switch.turn_off: relay
-                    - delay: 600ms
-                    - switch.turn_on: relay
-                    - delay: 200ms
-                    - switch.turn_off: relay
-                    - delay: 600ms
-                    - switch.turn_on: relay
-                    - delay: 200ms
-                    - switch.turn_off: relay
+        if:
+          condition:
+            - switch.is_on: chime_active
+          then:
+            - switch.turn_on: relay
     on_release:
-      then:
-        - if:
-            condition:
-              - lambda: return (id(chime_sound).state == "Switch");
-            then:
-              - switch.turn_off: relay
-
+      # On release, turn of the chime.
+      - switch.turn_off: relay        
+ 
   - platform: status
     name: "Status Doorbell"
