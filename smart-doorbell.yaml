@@ -141,7 +141,7 @@ binary_sensor:
             return 2500;
           }
           else {
-            return id(switch_off_delay).state;
+            return int(id(switch_off_delay).state);
           }
     on_press:
       then:
