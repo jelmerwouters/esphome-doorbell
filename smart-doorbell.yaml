@@ -11,7 +11,6 @@ esp32:
 
 # Enable logging
 logger:
-  level: DEBUG
 
 # Enable Home Assistant API
 api:
@@ -77,6 +76,10 @@ globals:
     type: bool
     restore_value: true
     initial_value: 'true'
+  - id: running
+    type: bool
+    restore_value: false
+    initial_value: 'false'
 
 number:
   - platform: template
@@ -87,8 +90,32 @@ number:
     min_value: 0
     max_value: 2000
     step: 1
+    unit_of_measurement: ms
     restore_value: yes
     initial_value: 0
+  - platform: template
+    name: "Doorbell OnOff OnTime"
+    id: switch_onoff_ontime
+    optimistic: true
+    mode: box
+    min_value: 100
+    max_value: 5000
+    step: 1
+    unit_of_measurement: ms
+    restore_value: yes
+    initial_value: 0
+  - platform: template
+    name: "Doorbell OnOff OffTime"
+    id: switch_onoff_offtime
+    optimistic: true
+    mode: box
+    min_value: 100
+    max_value: 5000
+    step: 1
+    unit_of_measurement: ms
+    restore_value: yes
+    initial_value: 0
+
 
 select:
   - platform: template
@@ -97,6 +124,7 @@ select:
     optimistic: true
     options:
       - "Switch"
+      - "On-Off"
       - "Zuidwijk Dingdong"
     initial_option: "Switch"
     restore_value: yes
@@ -133,56 +161,97 @@ binary_sensor:
       number: GPIO4
       mode: INPUT_PULLUP
       inverted: true
+    id: doorbell_switch
     name: "Doorbell"
     filters:
-      - delayed_on: 1ms
+      - delayed_on: 10ms
       - delayed_off: !lambda |-
-          if (id(chime_sound).state == "Zuidwijk Dingdong") {
-            return 2500;
-          }
-          else {
+          if (id(chime_sound).state == "Switch") {
             return int(id(switch_off_delay).state);
+          } else {
+            return 25;
           }
     on_press:
       then:
-        - logger.log:
-            format: "chime_sound: %s"
-            args: ['id(chime_sound).state.c_str()']
-        - logger.log:
-            format: "switch_off_delay: %.1f"
-            args: ['id(switch_off_delay).state']
         - if:
             condition:
               - switch.is_on: chime_active
+              - lambda: return (id(running) == false);
             then:
+              - logger.log:
+                  format: "chime_sound: %s"
+                  args: ['id(chime_sound).state.c_str()']
               - if:
                   condition:
                     - lambda: return (id(chime_sound).state == "Switch");
                   then:
+                    - logger.log: "On-Off - on"
+                    - logger.log:
+                        format: "switch_off_delay: %.1f"
+                        args: ['id(switch_off_delay).state']
                     - switch.turn_on: relay
+
+              - if:
+                  condition:
+                    - lambda: return (id(chime_sound).state == "On-Off");
+                  then:
+                    - while:
+                        condition:
+                          binary_sensor.is_on: doorbell_switch
+                        then:
+                          - logger.log: "On-Off - start"
+                          - globals.set:
+                              id: running
+                              value: 'true'
+                          - switch.turn_on: relay
+                          - delay: !lambda |-
+                              return int(id(switch_onoff_ontime).state);
+                          - logger.log: "On-Off - off"
+                          - switch.turn_off: relay
+                          - delay: !lambda |-
+                              return int(id(switch_onoff_offtime).state);
+                          - globals.set:
+                              id: running
+                              value: 'false'
+                          - logger.log: "On-Off - end"
 
               - if:
                   condition:
                     - lambda: return (id(chime_sound).state == "Zuidwijk Dingdong");
                   then:
-                    - switch.turn_on: relay
-                    - delay: 200ms
-                    - switch.turn_off: relay
-                    - delay: 600ms
-                    - switch.turn_on: relay
-                    - delay: 200ms
-                    - switch.turn_off: relay
-                    - delay: 600ms
-                    - switch.turn_on: relay
-                    - delay: 200ms
-                    - switch.turn_off: relay
+                    - while:
+                        condition:
+                          binary_sensor.is_on: doorbell_switch
+                        then:
+                          - logger.log: "Zuidwijk - start"
+                          - globals.set:
+                              id: running
+                              value: 'true'
+                          - switch.turn_on: relay
+                          - delay: 200ms
+                          - switch.turn_off: relay
+                          - delay: 600ms
+                          - switch.turn_on: relay
+                          - delay: 200ms
+                          - switch.turn_off: relay
+                          - delay: 600ms
+                          - switch.turn_on: relay
+                          - delay: 200ms
+                          - switch.turn_off: relay
+                          - delay: 1500ms
+                          - globals.set:
+                              id: running
+                              value: 'false'
+                          - logger.log: "Zuidwijk - end"
+
     on_release:
       then:
         - if:
             condition:
               - lambda: return (id(chime_sound).state == "Switch");
             then:
+              - logger.log: "On-Off - off"
               - switch.turn_off: relay
-
+                        
   - platform: status
     name: "Status Doorbell"
