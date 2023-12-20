@@ -2,7 +2,8 @@ esphome:
   name: smart-doorbell
   project:
     name: zuidwijk.smart-doorbell
-    version: "1.0"
+    version: "2.0"
+  comment: original bij zuidwijk.com - modified by jwouters
 
 esp32:
   board: esp32dev
@@ -11,6 +12,7 @@ esp32:
 
 # Enable logging
 logger:
+  level: DEBUG
 
 # Enable Home Assistant API
 api:
@@ -29,15 +31,14 @@ captive_portal:
 
 improv_serial:
 
-esp32_improv:
-  authorizer: none
+#esp32_improv:
+#  authorizer: none
 
-#doesnt work together with captive_portal
-esp32_ble_tracker:
-  scan_parameters:
-    interval: 1100ms
-    window: 1100ms
-    active: true
+#esp32_ble_tracker:
+#  scan_parameters:
+#    interval: 1100ms
+#    window: 1100ms
+#    active: true
 
 bluetooth_proxy:
   active: true
@@ -46,7 +47,7 @@ web_server:
   port: 80
 
 dashboard_import:
-  package_import_url: github://zuidwijk/esphome-doorbell/smart-doorbell.yaml@main
+  package_import_url: github://jelmerwouters/esphome-doorbell/smart-doorbell.yaml@main
   import_full_config: true
 
 time:
@@ -169,7 +170,7 @@ binary_sensor:
           if (id(chime_sound).state == "Switch") {
             return int(id(switch_off_delay).state);
           } else {
-            return 25;
+            return 10;
           }
     on_press:
       then:
